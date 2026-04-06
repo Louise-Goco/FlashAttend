@@ -1,8 +1,13 @@
 // frontend/src/App.js
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import React from "react";
+import 'bootstrap/dist/css/bootstrap.min.css';
+
+import Register from "./pages/Register";
+import Profile from "./pages/Profile";
+import Login from "./pages/Login";
+import AdminPanel from "./pages/AdminPanel";
 import Navbar from './components/Navbar';
-import Profile from './pages/Profile';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 
 // Placeholder components for Home and Course till implemented
 const Home = () => <div className="p-5 text-center"><h1>Home</h1><p className="text-muted">Welcome to FlashAttend</p></div>;
