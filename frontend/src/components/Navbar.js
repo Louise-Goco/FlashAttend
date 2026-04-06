@@ -59,14 +59,24 @@ const Navbar = () => {
             </li>
           </ul>
           
-          <div className="d-flex">
+        <div className="d-flex">
+          {!auth.currentUser ? (
+            <button 
+              onClick={() => navigate('/login')} 
+              className="btn btn-outline-light rounded-pill px-4"
+            >
+              Login
+            </button>
+          ) : (
             <button 
               onClick={handleLogout} 
-              className="btn btn-outline-light rounded-pill px-4 d-flex align-items-center gap-2 transition"
+              className="btn btn-outline-light rounded-pill px-4 d-flex align-items-center gap-2"
             >
               <LogOut size={18} /> Logout
             </button>
-          </div>
+          )}
+        </div>
+
         </div>
       </div>
     </nav>

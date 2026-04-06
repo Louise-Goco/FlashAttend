@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import React, { useState } from 'react';
 
 const Login = () => {
@@ -73,6 +74,11 @@ const Login = () => {
             {/* Optional Footer/Link */}
             <div className="text-center mt-3">
               <a href="#!" className="text-decoration-none text-muted">Forgot password?</a>
+            </div>
+
+            <div className="text-center mt-2">
+              <span className="text-muted">Don't have an account? </span>
+              <Link to="/register" className="text-decoration-none">Register</Link>
             </div>
           </div>
         </div>
