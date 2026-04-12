@@ -3,7 +3,7 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "../firebase/auth";
 import { getUserData, updateUserData } from "../firebase/userManagement";
-import { User, Mail, Phone, Calendar, Check, AlertCircle } from "lucide-react";
+import { User, Mail, Phone, Calendar, Check, AlertCircle, Pencil, X } from "lucide-react";
 
 const Profile = () => {
   const [formData, setFormData] = useState({
@@ -15,11 +15,13 @@ const Profile = () => {
     email: "",
     phone: "",
   });
-  
+
+  const [editData, setEditData] = useState({});
+  const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState({ type: "", text: "" });
   const [userUid, setUserUid] = useState(null);
-  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -40,7 +42,7 @@ const Profile = () => {
           setMessage({ type: "danger", text: "Failed to load user data." });
         }
       } else {
-        setMessage({ type: "warning", text: "Please log in to view and edit your profile." });
+        setMessage({ type: "warning", text: "Please log in to view your profile." });
       }
       setLoading(false);
     });
@@ -48,8 +50,32 @@ const Profile = () => {
     return () => unsubscribe();
   }, []);
 
+  const handleEditClick = () => {
+    setEditData({
+      firstName: formData.firstName,
+      lastName: formData.lastName,
+      gender: formData.gender,
+      dob: formData.dob,
+      phone: formData.phone,
+    });
+    setMessage({ type: "", text: "" });
+    setIsEditing(true);
+  };
+
+  const handleCancel = () => {
+    setIsEditing(false);
+    setEditData({});
+    setMessage({ type: "", text: "" });
+  };
+
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    if (name === "phone") {
+      const digitsOnly = value.replace(/\D/g, "").slice(0, 11);
+      setEditData({ ...editData, phone: digitsOnly });
+    } else {
+      setEditData({ ...editData, [name]: value });
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -65,17 +91,16 @@ const Profile = () => {
 
     try {
       await updateUserData(userUid, {
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        gender: formData.gender,
-        dob: formData.dob,
-        phone: formData.phone,
-        email: formData.email,
-        // Not sending studentId to ensure it can't be modified
+        firstName: editData.firstName,
+        lastName: editData.lastName,
+        gender: editData.gender,
+        dob: editData.dob,
+        phone: editData.phone,
       });
+      setFormData((prev) => ({ ...prev, ...editData }));
+      setIsEditing(false);
+      setEditData({});
       setMessage({ type: "success", text: "Profile updated successfully! All changes have been saved." });
-      
-      // Clear success message after 4 seconds
       setTimeout(() => setMessage({ type: "", text: "" }), 4000);
     } catch (error) {
       setMessage({ type: "danger", text: error.message });
@@ -93,18 +118,23 @@ const Profile = () => {
     );
   }
 
+  // Use editData when editing, formData when viewing
+  const display = isEditing ? editData : formData;
+
   return (
     <div className="row justify-content-center">
       <div className="col-lg-10">
-        
+
         {/* Banner Section */}
-        <div 
+        <div
           className="rounded-4 mb-4 position-relative overflow-hidden shadow-sm"
           style={{ height: "180px", background: "linear-gradient(135deg, #0d6efd 0%, #6610f2 100%)" }}
         >
           <div className="position-absolute bottom-0 start-0 w-100 p-4" style={{ background: "linear-gradient(to top, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0) 100%)" }}>
             <h2 className="text-white fw-bold mb-0">Student Profile</h2>
-            <p className="text-white-50 mb-0">Manage your university information</p>
+            <p className="text-white-50 mb-0">
+              {isEditing ? "Editing your information" : "Manage your university information"}
+            </p>
           </div>
         </div>
 
@@ -113,11 +143,11 @@ const Profile = () => {
           <div className="col-md-4">
             <div className="card border-0 shadow-sm rounded-4 h-100">
               <div className="card-body text-center p-4">
-                <div 
+                <div
                   className="rounded-circle d-flex align-items-center justify-content-center shadow-sm mx-auto mb-3"
-                  style={{ 
-                    width: "120px", 
-                    height: "120px", 
+                  style={{
+                    width: "120px",
+                    height: "120px",
                     fontSize: "2.5rem",
                     fontWeight: "bold",
                     color: "white",
@@ -153,7 +183,7 @@ const Profile = () => {
             </div>
           </div>
 
-          {/* Right Column: Form Edit */}
+          {/* Right Column */}
           <div className="col-md-8">
             <div className="card border-0 shadow-sm rounded-4">
               <div className="card-body p-5">
@@ -169,12 +199,11 @@ const Profile = () => {
                 )}
 
                 <form onSubmit={handleSubmit}>
-                  {/* Student ID (Read Only) */}
+                  {/* Student ID — always read-only */}
                   <div className="mb-4">
                     <label className="form-label text-muted small fw-bold text-uppercase">Student ID Number</label>
                     <input
                       type="text"
-                      name="studentId"
                       value={formData.studentId}
                       className="form-control form-control-lg bg-light border-0 text-muted"
                       readOnly
@@ -184,25 +213,31 @@ const Profile = () => {
                   {/* First and Last Name */}
                   <div className="row g-3 mb-4">
                     <div className="col-md-6">
-                      <label className="form-label text-muted small fw-bold text-uppercase">First Name*</label>
+                      <label className="form-label text-muted small fw-bold text-uppercase">
+                        First Name{isEditing && <span className="text-danger">*</span>}
+                      </label>
                       <input
                         type="text"
                         name="firstName"
-                        value={formData.firstName}
+                        value={display.firstName || ""}
                         onChange={handleChange}
-                        className="form-control form-control-lg border-light-subtle shadow-none bg-light-subtle"
-                        required
+                        className={`form-control form-control-lg ${isEditing ? "border-light-subtle shadow-none bg-light-subtle" : "bg-light border-0 text-muted"}`}
+                        readOnly={!isEditing}
+                        required={isEditing}
                       />
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label text-muted small fw-bold text-uppercase">Last Name*</label>
+                      <label className="form-label text-muted small fw-bold text-uppercase">
+                        Last Name{isEditing && <span className="text-danger">*</span>}
+                      </label>
                       <input
                         type="text"
                         name="lastName"
-                        value={formData.lastName}
+                        value={display.lastName || ""}
                         onChange={handleChange}
-                        className="form-control form-control-lg border-light-subtle shadow-none bg-light-subtle"
-                        required
+                        className={`form-control form-control-lg ${isEditing ? "border-light-subtle shadow-none bg-light-subtle" : "bg-light border-0 text-muted"}`}
+                        readOnly={!isEditing}
+                        required={isEditing}
                       />
                     </div>
                   </div>
@@ -210,83 +245,126 @@ const Profile = () => {
                   {/* Gender and Date of Birth */}
                   <div className="row g-3 mb-4">
                     <div className="col-md-6">
-                      <label className="form-label text-muted small fw-bold text-uppercase">Gender*</label>
-                      <select 
-                        name="gender" 
-                        value={formData.gender} 
-                        onChange={handleChange} 
-                        className="form-select form-select-lg border-light-subtle shadow-none"
-                        style={{ backgroundColor: '#f8f9fa' }}
-                        required
-                      >
-                        <option value="">Select Gender</option>
-                        <option value="Male">Male</option>
-                        <option value="Female">Female</option>
-                        <option value="Other">Other</option>
-                        <option value="Prefer not to say">Prefer not to say</option>
-                      </select>
+                      <label className="form-label text-muted small fw-bold text-uppercase">
+                        Gender{isEditing && <span className="text-danger">*</span>}
+                      </label>
+                      {isEditing ? (
+                        <select
+                          name="gender"
+                          value={display.gender || ""}
+                          onChange={handleChange}
+                          className="form-select form-select-lg border-light-subtle shadow-none"
+                          style={{ backgroundColor: '#f8f9fa' }}
+                          required
+                        >
+                          <option value="">Select Gender</option>
+                          <option value="Male">Male</option>
+                          <option value="Female">Female</option>
+                          <option value="Other">Other</option>
+                          <option value="Prefer not to say">Prefer not to say</option>
+                        </select>
+                      ) : (
+                        <input
+                          type="text"
+                          value={formData.gender}
+                          className="form-control form-control-lg bg-light border-0 text-muted"
+                          readOnly
+                        />
+                      )}
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label text-muted small fw-bold text-uppercase">Date of Birth*</label>
+                      <label className="form-label text-muted small fw-bold text-uppercase">
+                        Date of Birth{isEditing && <span className="text-danger">*</span>}
+                      </label>
                       <input
-                        type="date"
+                        type={isEditing ? "date" : "text"}
                         name="dob"
-                        value={formData.dob}
+                        value={display.dob || ""}
                         onChange={handleChange}
-                        className="form-control form-control-lg border-light-subtle shadow-none bg-light-subtle"
-                        required
+                        className={`form-control form-control-lg ${isEditing ? "border-light-subtle shadow-none bg-light-subtle" : "bg-light border-0 text-muted"}`}
+                        readOnly={!isEditing}
+                        required={isEditing}
                       />
                     </div>
                   </div>
 
-                  {/* Email and Phone */}
+                  {/* Email (always read-only) and Phone */}
                   <div className="row g-3 mb-5">
                     <div className="col-md-6">
-                      <label className="form-label text-muted small fw-bold text-uppercase">Email Address*</label>
+                      <label className="form-label text-muted small fw-bold text-uppercase">Email Address</label>
                       <input
-                        type="email"
-                        name="email"
+                        type="text"
                         value={formData.email}
-                        onChange={handleChange}
-                        className="form-control form-control-lg border-light-subtle shadow-none bg-light-subtle"
-                        required
+                        className="form-control form-control-lg bg-light border-0 text-muted"
+                        readOnly
                       />
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label text-muted small fw-bold text-uppercase">Phone Number*</label>
+                      <label className="form-label text-muted small fw-bold text-uppercase">
+                        Phone Number{isEditing && <span className="text-danger">*</span>}
+                      </label>
                       <input
                         type="tel"
                         name="phone"
-                        value={formData.phone}
+                        value={display.phone || ""}
                         onChange={handleChange}
-                        className="form-control form-control-lg border-light-subtle shadow-none bg-light-subtle"
-                        required
+                        className={`form-control form-control-lg ${isEditing ? "border-light-subtle shadow-none bg-light-subtle" : "bg-light border-0 text-muted"}`}
+                        readOnly={!isEditing}
+                        required={isEditing}
+                        maxLength={11}
+                        pattern="\d{11}"
+                        inputMode="numeric"
+                        title="Phone number must be exactly 11 digits"
                       />
                     </div>
                   </div>
 
-                  {/* Submit Button */}
-                  <div className="text-end">
-                    <button
-                      type="submit"
-                      className="btn btn-primary btn-lg rounded-pill px-5 shadow-sm d-flex align-items-center gap-2 ms-auto"
-                      disabled={!userUid || isSaving}
-                      style={{ transition: "all 0.3s ease", background: "linear-gradient(135deg, #0d6efd 0%, #6610f2 100%)", border: "none" }}
-                    >
-                      {isSaving ? (
-                        <>
-                          <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                          Saving...
-                        </>
-                      ) : (
-                        <>
-                          <Check size={20} />
-                          Save Changes
-                        </>
-                      )}
-                    </button>
+                  {/* Action Buttons */}
+                  <div className="d-flex justify-content-end gap-2">
+                    {isEditing ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={handleCancel}
+                          className="btn btn-outline-secondary btn-lg rounded-pill px-4 d-flex align-items-center gap-2"
+                          disabled={isSaving}
+                        >
+                          <X size={20} />
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          className="btn btn-primary btn-lg rounded-pill px-5 shadow-sm d-flex align-items-center gap-2"
+                          disabled={isSaving}
+                          style={{ transition: "all 0.3s ease", background: "linear-gradient(135deg, #0d6efd 0%, #6610f2 100%)", border: "none" }}
+                        >
+                          {isSaving ? (
+                            <>
+                              <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                              Saving...
+                            </>
+                          ) : (
+                            <>
+                              <Check size={20} />
+                              Save Changes
+                            </>
+                          )}
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleEditClick}
+                        className="btn btn-primary btn-lg rounded-pill px-5 shadow-sm d-flex align-items-center gap-2"
+                        style={{ transition: "all 0.3s ease", background: "linear-gradient(135deg, #0d6efd 0%, #6610f2 100%)", border: "none" }}
+                      >
+                        <Pencil size={20} />
+                        Edit Profile
+                      </button>
+                    )}
                   </div>
                 </form>
+
               </div>
             </div>
           </div>
