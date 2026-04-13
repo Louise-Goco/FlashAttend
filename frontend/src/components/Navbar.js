@@ -26,7 +26,7 @@ const Navbar = () => {
   return (
     <nav className="navbar navbar-expand-lg navbar-dark shadow-sm" style={{ backgroundColor: '#0d6efd' }}>
       <div className="container">
-        <Link className="navbar-brand fw-bold d-flex align-items-center gap-2" to="/">
+        <Link className="navbar-brand fw-bold d-flex align-items-center gap-2" to="/dashboard">
           <BookOpen size={24} />
           <span>FlashAttend</span>
         </Link>
@@ -43,17 +43,17 @@ const Navbar = () => {
         <div className="collapse navbar-collapse" id="navbarContent">
           <ul className="navbar-nav me-auto mb-2 mb-lg-0 ms-4">
             <li className="nav-item">
-              <Link className={`nav-link d-flex align-items-center gap-1 ${isActive('/')}`} to="/">
+              <Link className={`nav-link d-flex align-items-center gap-1 ${isActive('/dashboard')}`} to="/dashboard">
                 <Home size={18} /> Home
               </Link>
             </li>
             <li className="nav-item">
-              <Link className={`nav-link d-flex align-items-center gap-1 ${isActive('/course')}`} to="/course">
+              <Link className={`nav-link d-flex align-items-center gap-1 ${isActive('/dashboard/course')}`} to="/dashboard/course">
                 <BookOpen size={18} /> Courses
               </Link>
             </li>
             <li className="nav-item">
-              <Link className={`nav-link d-flex align-items-center gap-1 ${isActive('/profile')}`} to="/profile">
+              <Link className={`nav-link d-flex align-items-center gap-1 ${isActive('/dashboard/profile')}`} to="/dashboard/profile">
                 <User size={18} /> Profile
               </Link>
             </li>

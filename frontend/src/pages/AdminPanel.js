@@ -1,4 +1,8 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { signOut } from "firebase/auth";
+import { auth, registerUser } from "../firebase/auth";
+import { getAllUsers, updateUserData, deleteUserData, saveUserData } from "../firebase/userManagement";
 
 // ─── Inline styles ────────────────────────────────────────────────────────────
 const styles = `
@@ -294,9 +298,9 @@ const styles = `
   }
 
   .badge-admin    { background: #1a2340; color: #6c8ef5; border: 1px solid #2a3560; }
-  .badge-editor   { background: #1a3030; color: #4fd1c5; border: 1px solid #2a4040; }
+  .badge-student  { background: #1a3030; color: #4fd1c5; border: 1px solid #2a4040; }
+  .badge-faculty  { background: #2d1a30; color: #d08aff; border: 1px solid #401a50; }
   .badge-viewer   { background: #1e2432; color: #7a869a; border: 1px solid #2a3040; }
-  .badge-manager  { background: #2d1a30; color: #d08aff; border: 1px solid #401a50; }
 
   /* Status dot */
   .status-dot {
@@ -382,7 +386,7 @@ const styles = `
     border: 1px solid #2a3560;
     border-radius: 14px;
     width: 100%;
-    max-width: 480px;
+    max-width: 600px;
     padding: 28px;
     animation: slideUp 0.2s ease;
   }
@@ -564,20 +568,14 @@ const getAvatarStyle = (name) => {
   return AVATAR_COLORS[idx];
 };
 
-const ROLES = ["Admin", "Manager", "Editor", "Viewer"];
+const ROLES = ["Admin", "Student", "Faculty"];
 const STATUSES = ["Active", "Inactive", "Pending"];
 
-// ─── Default Users ────────────────────────────────────────────────────────────
-const INITIAL_USERS = [
-  { id: 1, name: "Alexandra Reyes", email: "a.reyes@corp.io", role: "Admin", status: "Active", joined: "Jan 2024", dept: "Engineering" },
-  { id: 2, name: "Marcus Tan", email: "m.tan@corp.io", role: "Manager", status: "Active", joined: "Mar 2024", dept: "Product" },
-  { id: 3, name: "Priya Nair", email: "p.nair@corp.io", role: "Editor", status: "Pending", joined: "Jun 2024", dept: "Design" },
-  { id: 4, name: "Lucas Moreira", email: "l.moreira@corp.io", role: "Viewer", status: "Inactive", joined: "Feb 2024", dept: "Marketing" },
-  { id: 5, name: "Hana Fujimoto", email: "h.fujimoto@corp.io", role: "Editor", status: "Active", joined: "Aug 2024", dept: "Engineering" },
-  { id: 6, name: "Jordan Blake", email: "j.blake@corp.io", role: "Admin", status: "Active", joined: "Dec 2023", dept: "Leadership" },
-];
-
-const BLANK_FORM = { name: "", email: "", role: "Viewer", status: "Active", dept: "" };
+const BLANK_FORM = {
+  firstName: "", lastName: "", email: "", gender: "",
+  dob: "", phone: "", password: "", confirmPassword: "",
+  role: "Student", status: "Active"
+};
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
 const Toast = ({ toasts }) => (
@@ -598,7 +596,20 @@ const UserModal = ({ mode, user, onClose, onSave }) => {
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
   const handleSave = () => {
-    if (!form.name.trim() || !form.email.trim()) return;
+    if (!form.firstName?.trim() || !form.lastName?.trim() || !form.email?.trim()) {
+      alert("First Name, Last Name and Email are required.");
+      return;
+    }
+    if (mode === "add") {
+      if (!form.password || form.password.length < 6) {
+        alert("Password must be at least 6 characters.");
+        return;
+      }
+      if (form.password !== form.confirmPassword) {
+        alert("Passwords do not match.");
+        return;
+      }
+    }
     onSave(form);
   };
 
@@ -609,33 +620,68 @@ const UserModal = ({ mode, user, onClose, onSave }) => {
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">Full name *</label>
-            <input className="form-input" value={form.name} onChange={set("name")} placeholder="Jane Smith" />
+            <label className="form-label">First Name *</label>
+            <input className="form-input" value={form.firstName || ""} onChange={set("firstName")} placeholder="Jane" />
           </div>
           <div className="form-group">
-            <label className="form-label">Email *</label>
-            <input className="form-input" value={form.email} onChange={set("email")} placeholder="jane@corp.io" />
+            <label className="form-label">Last Name *</label>
+            <input className="form-input" value={form.lastName || ""} onChange={set("lastName")} placeholder="Smith" />
           </div>
         </div>
 
         <div className="form-row">
           <div className="form-group">
+            <label className="form-label">Email *</label>
+            <input className="form-input" value={form.email || ""} onChange={set("email")} placeholder="jane@univ.edu" />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Phone Number</label>
+            <input className="form-input" value={form.phone || ""} onChange={set("phone")} placeholder="+1 234 567 890" />
+          </div>
+        </div>
+
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">Gender</label>
+            <select className="form-select" value={form.gender || ""} onChange={set("gender")}>
+              <option value="">Select</option>
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Date of Birth</label>
+            <input type="date" className="form-input" value={form.dob || ""} onChange={set("dob")} />
+          </div>
+        </div>
+
+        {mode === "add" && (
+          <div className="form-row">
+            <div className="form-group">
+              <label className="form-label">Password *</label>
+              <input type="password" className="form-input" value={form.password || ""} onChange={set("password")} placeholder="••••••••" />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Confirm Password *</label>
+              <input type="password" className="form-input" value={form.confirmPassword || ""} onChange={set("confirmPassword")} placeholder="••••••••" />
+            </div>
+          </div>
+        )}
+
+        <div className="form-row">
+          <div className="form-group">
             <label className="form-label">Role</label>
-            <select className="form-select" value={form.role} onChange={set("role")}>
+            <select className="form-select" value={form.role || "Student"} onChange={set("role")}>
               {ROLES.map((r) => <option key={r}>{r}</option>)}
             </select>
           </div>
           <div className="form-group">
             <label className="form-label">Status</label>
-            <select className="form-select" value={form.status} onChange={set("status")}>
+            <select className="form-select" value={form.status || "Active"} onChange={set("status")}>
               {STATUSES.map((s) => <option key={s}>{s}</option>)}
             </select>
           </div>
-        </div>
-
-        <div className="form-group">
-          <label className="form-label">Department</label>
-          <input className="form-input" value={form.dept} onChange={set("dept")} placeholder="e.g. Engineering" />
         </div>
 
         <div className="modal-actions">
@@ -669,8 +715,38 @@ const DeleteModal = ({ user, onClose, onConfirm }) => (
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function AdminPanel() {
-  const [users, setUsers] = useState(INITIAL_USERS);
+  const navigate = useNavigate();
+  const [users, setUsers] = useState([]);
   const [search, setSearch] = useState("");
+
+  const loadUsers = async () => {
+    try {
+      const data = await getAllUsers();
+      const usersArray = Object.keys(data).map(key => {
+        const u = data[key];
+        return {
+          id: key,
+          name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.name || "Unknown",
+          firstName: u.firstName || "",
+          lastName: u.lastName || "",
+          gender: u.gender || "",
+          dob: u.dob || "",
+          phone: u.phone || "",
+          email: u.email || "",
+          role: u.role || "Student",
+          status: u.status || "Active",
+          joined: u.joined || new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" })
+        };
+      });
+      setUsers(usersArray);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  useEffect(() => {
+    loadUsers();
+  }, []);
   const [roleFilter, setRoleFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
   const [page, setPage] = useState(1);
@@ -706,27 +782,84 @@ export default function AdminPanel() {
   const pending = users.filter((u) => u.status === "Pending").length;
 
   // CRUD
-  const handleAdd = (form) => {
-    const newUser = { ...form, id: Date.now(), joined: new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" }) };
-    setUsers((u) => [newUser, ...u]);
-    setModal(null);
-    pushToast(`User "${form.name}" created`, "#48bb78");
+  const handleAdd = async (form) => {
+    try {
+      const { user } = await registerUser(form.email, form.password);
+      const userId = user.uid;
+      const joinedDate = new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" });
+
+      const newDBUser = {
+        firstName: form.firstName || "",
+        lastName: form.lastName || "",
+        gender: form.gender || "",
+        dob: form.dob || "",
+        phone: form.phone || "",
+        email: form.email,
+        role: form.role,
+        status: form.status,
+        joined: joinedDate
+      };
+
+      await saveUserData(userId, newDBUser);
+
+      const displayUser = { id: userId, name: `${newDBUser.firstName} ${newDBUser.lastName}`.trim(), ...newDBUser };
+      setUsers((u) => [displayUser, ...u]);
+      setModal(null);
+      pushToast(`User "${displayUser.name}" created`, "#48bb78");
+    } catch (e) {
+      console.error(e);
+      pushToast(e.message || "Failed to add user", "#fc8181");
+    }
   };
 
-  const handleEdit = (form) => {
-    setUsers((u) => u.map((x) => (x.id === modal.user.id ? { ...x, ...form } : x)));
-    setModal(null);
-    pushToast(`User "${form.name}" updated`, "#6c8ef5");
+  const handleEdit = async (form) => {
+    try {
+      const updatedDBUser = {
+        firstName: form.firstName || "",
+        lastName: form.lastName || "",
+        gender: form.gender || "",
+        dob: form.dob || "",
+        phone: form.phone || "",
+        email: form.email,
+        role: form.role,
+        status: form.status
+      };
+
+      await updateUserData(modal.user.id, updatedDBUser);
+
+      const displayUser = { ...modal.user, ...updatedDBUser, name: `${updatedDBUser.firstName} ${updatedDBUser.lastName}`.trim() };
+      setUsers((u) => u.map((x) => (x.id === modal.user.id ? displayUser : x)));
+      setModal(null);
+      pushToast(`User "${displayUser.name}" updated`, "#6c8ef5");
+    } catch (e) {
+      console.error(e);
+      pushToast("Failed to update user", "#fc8181");
+    }
   };
 
-  const handleDelete = () => {
-    setUsers((u) => u.filter((x) => x.id !== modal.user.id));
-    pushToast(`User removed`, "#fc8181");
-    setModal(null);
+  const handleDelete = async () => {
+    try {
+      await deleteUserData(modal.user.id);
+      setUsers((u) => u.filter((x) => x.id !== modal.user.id));
+      pushToast(`User removed`, "#fc8181");
+      setModal(null);
+    } catch (e) {
+      pushToast("Failed to remove user", "#fc8181");
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      navigate('/login');
+    } catch (e) {
+      console.error(e);
+      pushToast("Failed to logout", "#fc8181");
+    }
   };
 
   const roleBadge = (role) => {
-    const map = { Admin: "badge-admin", Manager: "badge-manager", Editor: "badge-editor", Viewer: "badge-viewer" };
+    const map = { Admin: "badge-admin", Student: "badge-student", Faculty: "badge-faculty" };
     return <span className={`badge ${map[role] || "badge-viewer"}`}>{role}</span>;
   };
 
@@ -756,6 +889,11 @@ export default function AdminPanel() {
               {label}
             </button>
           ))}
+          <div style={{ flex: 1 }} />
+          <button className="sidebar-item" onClick={handleLogout} style={{ marginTop: 'auto', color: '#fc8181' }}>
+            <span className="sidebar-icon">⎋</span>
+            Logout
+          </button>
         </aside>
 
         {/* Main */}
@@ -818,7 +956,7 @@ export default function AdminPanel() {
                   <tr>
                     <th>User</th>
                     <th>Role</th>
-                    <th>Department</th>
+                    <th>Phone</th>
                     <th>Status</th>
                     <th>Joined</th>
                     <th>Actions</th>
@@ -851,7 +989,7 @@ export default function AdminPanel() {
                             </div>
                           </td>
                           <td>{roleBadge(u.role)}</td>
-                          <td style={{ color: "#7a869a" }}>{u.dept || "—"}</td>
+                          <td style={{ color: "#7a869a" }}>{u.phone || "—"}</td>
                           <td>{statusDot(u.status)}</td>
                           <td style={{ color: "#4a5568", fontFamily: "'Space Mono', monospace", fontSize: 12 }}>{u.joined}</td>
                           <td>

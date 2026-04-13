@@ -1,4 +1,3 @@
-// frontend/src/App.js
 import React from "react";
 import 'bootstrap/dist/css/bootstrap.min.css';
 
@@ -6,7 +5,7 @@ import Register from "./pages/Register";
 import Profile from "./pages/Profile";
 import Login from "./pages/Login";
 import AdminPanel from "./pages/AdminPanel";
-import Navbar from './components/Navbar';
+import Dashboard from "./pages/Dashboard";
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 
 // Placeholder components for Home and Course till implemented
@@ -17,16 +16,18 @@ function App() {
   return (
     <Router>
       <div className="min-vh-100 bg-light pb-5">
-        <Navbar />
-        <div className="container py-4">
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/course" element={<Course />} />
-            <Route path="/profile" element={<Profile />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-          </Routes>
-        </div>
+        <Routes>
+          <Route path="/" element={<Login />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="admin" element={<AdminPanel />} />
+          
+          <Route path="/dashboard" element={<Dashboard />}>
+            <Route index element={<Home />} />
+            <Route path="course" element={<Course />} />
+            <Route path="profile" element={<Profile />} />
+          </Route>
+        </Routes>
       </div>
     </Router>
   );

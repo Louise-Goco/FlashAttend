@@ -1,12 +1,17 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import React, { useState } from 'react';
+import { loginUser } from '../firebase/auth';
 
 const Login = () => {
+  const navigate = useNavigate();
   // State to hold the email and password inputs
   const [formData, setFormData] = useState({
     email: '',
     password: ''
   });
+  
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   // Handle input changes
   const handleChange = (e) => {
@@ -18,11 +23,34 @@ const Login = () => {
   };
 
   // Handle form submission
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Here you would typically send the data to your backend API
-    console.log('Login Details:', formData);
-    alert(`Logging in with Email: ${formData.email}`);
+    setError('');
+    setLoading(true);
+
+    const ADMIN_USERNAME = "admin@gmail.com";
+    const ADMIN_PASS = "admin123";
+
+    // 1. Check for Hard-coded Admin Credentials First
+    if (formData.email === ADMIN_USERNAME && formData.password === ADMIN_PASS) {
+      // Small delay for UI feel
+      setTimeout(() => {
+        setLoading(false);
+        navigate('/admin'); 
+      }, 600);
+      return; // Exit the function so it doesn't try Firebase
+    }
+
+    // 2. If not admin, proceed to Firebase Login
+    try {
+      await loginUser(formData.email, formData.password);
+      navigate('/dashboard');
+    } catch (err) {
+      console.error('Login error:', err);
+      setError('Invalid credentials. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -32,6 +60,12 @@ const Login = () => {
           <div className="card-body p-5">
             <h3 className="text-center mb-4">Welcome Back</h3>
             
+            {error && (
+              <div className="alert alert-danger" role="alert">
+                {error}
+              </div>
+            )}
+
             <form onSubmit={handleSubmit}>
               {/* Email Input */}
               <div className="mb-3">
@@ -65,8 +99,8 @@ const Login = () => {
 
               {/* Submit Button */}
               <div className="d-grid gap-2 mt-4">
-                <button type="submit" className="btn btn-primary btn-lg">
-                  Login
+                <button type="submit" className="btn btn-primary btn-lg" disabled={loading}>
+                  {loading ? 'Logging in...' : 'Login'}
                 </button>
               </div>
             </form>
