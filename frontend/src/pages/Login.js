@@ -1,7 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import React, { useState } from 'react';
 import { loginUser } from '../firebase/auth';
-
+import { getUserData } from '../firebase/userManagement';
 const Login = () => {
   const navigate = useNavigate();
   // State to hold the email and password inputs
@@ -28,23 +28,26 @@ const Login = () => {
     setError('');
     setLoading(true);
 
-    const ADMIN_USERNAME = "admin@gmail.com";
-    const ADMIN_PASS = "admin123";
-
-    // 1. Check for Hard-coded Admin Credentials First
-    if (formData.email === ADMIN_USERNAME && formData.password === ADMIN_PASS) {
-      // Small delay for UI feel
-      setTimeout(() => {
-        setLoading(false);
-        navigate('/admin'); 
-      }, 600);
-      return; // Exit the function so it doesn't try Firebase
-    }
-
-    // 2. If not admin, proceed to Firebase Login
     try {
-      await loginUser(formData.email, formData.password);
-      navigate('/dashboard');
+      const userCredential = await loginUser(formData.email, formData.password);
+      const uid = userCredential.user.uid;
+      
+      try {
+        const userData = await getUserData(uid);
+        if (userData.role === 'Admin' || formData.email === 'admin@gmail.com') {
+          navigate('/admin');
+        } else {
+          navigate('/dashboard');
+        }
+      } catch (dbErr) {
+        console.error("Error fetching user data:", dbErr);
+        // Fallback check if db fetch fails
+        if (formData.email === 'admin@gmail.com') {
+          navigate('/admin');
+        } else {
+          navigate('/dashboard');
+        }
+      }
     } catch (err) {
       console.error('Login error:', err);
       setError('Invalid credentials. Please try again.');

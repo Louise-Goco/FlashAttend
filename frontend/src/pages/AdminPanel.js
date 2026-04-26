@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { signOut } from "firebase/auth";
 import { auth, registerUser } from "../firebase/auth";
 import { getAllUsers, updateUserData, deleteUserData, saveUserData } from "../firebase/userManagement";
+import ClassManagement from "./ClassManagement";
 
 // ─── Inline styles ────────────────────────────────────────────────────────────
 const styles = `
@@ -572,7 +573,7 @@ const ROLES = ["Admin", "Student", "Faculty"];
 const STATUSES = ["Active", "Inactive", "Pending"];
 
 const BLANK_FORM = {
-  firstName: "", lastName: "", email: "", gender: "",
+  identifier: "", firstName: "", lastName: "", email: "", gender: "",
   dob: "", phone: "", password: "", confirmPassword: "",
   role: "Student", status: "Active"
 };
@@ -590,14 +591,25 @@ const Toast = ({ toasts }) => (
 );
 
 // ─── User Form Modal ──────────────────────────────────────────────────────────
-const UserModal = ({ mode, user, onClose, onSave }) => {
-  const [form, setForm] = useState(user || BLANK_FORM);
+const UserModal = ({ mode, user, targetRole, onClose, onSave }) => {
+  const [form, setForm] = useState(() => {
+    if (user) return { ...user };
+    return { ...BLANK_FORM, role: targetRole || "Student" };
+  });
 
-  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const set = (k) => (e) => {
+    let val = e.target.value;
+    if (k === "phone") {
+      val = val.replace(/\D/g, "").slice(0, 11);
+    } else if (k === "identifier" && form.role === "Student") {
+      val = val.replace(/\D/g, "").slice(0, 8);
+    }
+    setForm((f) => ({ ...f, [k]: val }));
+  };
 
   const handleSave = () => {
-    if (!form.firstName?.trim() || !form.lastName?.trim() || !form.email?.trim()) {
-      alert("First Name, Last Name and Email are required.");
+    if (!form.identifier?.trim() || !form.firstName?.trim() || !form.lastName?.trim() || !form.email?.trim()) {
+      alert("ID, First Name, Last Name and Email are required.");
       return;
     }
     if (mode === "add") {
@@ -616,31 +628,35 @@ const UserModal = ({ mode, user, onClose, onSave }) => {
   return (
     <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal-box">
-        <div className="modal-title">{mode === "add" ? "▸ New User" : "▸ Edit User"}</div>
+        <div className="modal-title">{mode === "add" ? `▸ New ${form.role}` : `▸ Edit ${form.role}`}</div>
 
         <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">{form.role === "Faculty" ? "Faculty ID *" : "Student ID *"}</label>
+            <input className="form-input" value={form.identifier || ""} onChange={set("identifier")} placeholder={form.role === "Faculty" ? "Enter Faculty ID" : "Enter Student ID"} />
+          </div>
           <div className="form-group">
             <label className="form-label">First Name *</label>
             <input className="form-input" value={form.firstName || ""} onChange={set("firstName")} placeholder="Jane" />
           </div>
+        </div>
+
+        <div className="form-row">
           <div className="form-group">
             <label className="form-label">Last Name *</label>
             <input className="form-input" value={form.lastName || ""} onChange={set("lastName")} placeholder="Smith" />
           </div>
-        </div>
-
-        <div className="form-row">
           <div className="form-group">
-            <label className="form-label">Email *</label>
+            <label className="form-label">Email Address *</label>
             <input className="form-input" value={form.email || ""} onChange={set("email")} placeholder="jane@univ.edu" />
           </div>
-          <div className="form-group">
-            <label className="form-label">Phone Number</label>
-            <input className="form-input" value={form.phone || ""} onChange={set("phone")} placeholder="+1 234 567 890" />
-          </div>
         </div>
 
         <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">Phone Number</label>
+            <input className="form-input" value={form.phone || ""} onChange={set("phone")} placeholder="09123456789" />
+          </div>
           <div className="form-group">
             <label className="form-label">Gender</label>
             <select className="form-select" value={form.gender || ""} onChange={set("gender")}>
@@ -650,9 +666,16 @@ const UserModal = ({ mode, user, onClose, onSave }) => {
               <option value="Other">Other</option>
             </select>
           </div>
+        </div>
+
+        <div className="form-row">
           <div className="form-group">
             <label className="form-label">Date of Birth</label>
             <input type="date" className="form-input" value={form.dob || ""} onChange={set("dob")} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Role</label>
+            <input className="form-input" value={form.role || ""} readOnly disabled style={{ opacity: 0.7, cursor: 'not-allowed' }} />
           </div>
         </div>
 
@@ -671,16 +694,13 @@ const UserModal = ({ mode, user, onClose, onSave }) => {
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">Role</label>
-            <select className="form-select" value={form.role || "Student"} onChange={set("role")}>
-              {ROLES.map((r) => <option key={r}>{r}</option>)}
-            </select>
-          </div>
-          <div className="form-group">
             <label className="form-label">Status</label>
             <select className="form-select" value={form.status || "Active"} onChange={set("status")}>
               {STATUSES.map((s) => <option key={s}>{s}</option>)}
             </select>
+          </div>
+          <div className="form-group">
+            {/* Empty space for alignment */}
           </div>
         </div>
 
@@ -722,10 +742,11 @@ export default function AdminPanel() {
   const loadUsers = async () => {
     try {
       const data = await getAllUsers();
-      const usersArray = Object.keys(data).map(key => {
+      const usersArray = Object.keys(data || {}).map(key => {
         const u = data[key];
         return {
           id: key,
+          identifier: u.identifier || "",
           name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.name || "Unknown",
           firstName: u.firstName || "",
           lastName: u.lastName || "",
@@ -740,13 +761,15 @@ export default function AdminPanel() {
       });
       setUsers(usersArray);
     } catch (e) {
-      console.error(e);
+      console.error("Error fetching users:", e);
+      pushToast("Error fetching users: " + e.message, "#fc8181");
     }
   };
 
   useEffect(() => {
     loadUsers();
   }, []);
+  const [activeTab, setActiveTab] = useState("Users");
   const [roleFilter, setRoleFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
   const [page, setPage] = useState(1);
@@ -778,7 +801,7 @@ export default function AdminPanel() {
   // Stats
   const total = users.length;
   const active = users.filter((u) => u.status === "Active").length;
-  const admins = users.filter((u) => u.role === "Admin").length;
+  const admin = users.filter((u) => (u.role && u.role.toLowerCase() === "admin") || u.email === "admin@gmail.com").length;
   const pending = users.filter((u) => u.status === "Pending").length;
 
   // CRUD
@@ -789,6 +812,7 @@ export default function AdminPanel() {
       const joinedDate = new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" });
 
       const newDBUser = {
+        identifier: form.identifier || "",
         firstName: form.firstName || "",
         lastName: form.lastName || "",
         gender: form.gender || "",
@@ -815,6 +839,7 @@ export default function AdminPanel() {
   const handleEdit = async (form) => {
     try {
       const updatedDBUser = {
+        identifier: form.identifier || "",
         firstName: form.firstName || "",
         lastName: form.lastName || "",
         gender: form.gender || "",
@@ -859,8 +884,9 @@ export default function AdminPanel() {
   };
 
   const roleBadge = (role) => {
+    const r = role ? role.charAt(0).toUpperCase() + role.slice(1).toLowerCase() : "";
     const map = { Admin: "badge-admin", Student: "badge-student", Faculty: "badge-faculty" };
-    return <span className={`badge ${map[role] || "badge-viewer"}`}>{role}</span>;
+    return <span className={`badge ${map[r] || "badge-viewer"}`}>{role}</span>;
   };
 
   const statusDot = (status) => {
@@ -882,9 +908,13 @@ export default function AdminPanel() {
         <aside className="sidebar">
           <div className="sidebar-logo">CTRL · ADM</div>
           {[
-            ["◈", "Dashboard"], ["◉", "Users", true], ["◫", "Roles"], ["◬", "Activity"], ["◐", "Settings"],
-          ].map(([icon, label, active]) => (
-            <button key={label} className={`sidebar-item ${active ? "active" : ""}`}>
+            ["◈", "Dashboard"], ["◉", "Users"], ["📚", "Classes"], ["◫", "Roles"], ["◬", "Activity"], ["◐", "Settings"],
+          ].map(([icon, label]) => (
+            <button 
+              key={label} 
+              className={`sidebar-item ${activeTab === label ? "active" : ""}`}
+              onClick={() => setActiveTab(label)}
+            >
               <span className="sidebar-icon">{icon}</span>
               {label}
             </button>
@@ -898,20 +928,24 @@ export default function AdminPanel() {
 
         {/* Main */}
         <main className="main-content">
-          <div className="topbar">
-            <div>
-              <div className="topbar-title">User Management</div>
-              <div className="topbar-sub">Manage all system accounts and permissions</div>
-            </div>
-          </div>
+          {activeTab === "Classes" ? (
+            <ClassManagement pushToast={pushToast} />
+          ) : activeTab === "Users" ? (
+            <>
+              <div className="topbar">
+                <div>
+                  <div className="topbar-title">User Management</div>
+                  <div className="topbar-sub">Manage all system accounts and permissions</div>
+                </div>
+              </div>
 
-          <div className="page-body">
-            {/* Stats */}
+              <div className="page-body">
+                {/* Stats */}
             <div className="stats-row">
               {[
                 { label: "Total Users", value: total, delta: "+2 this month", up: true },
                 { label: "Active", value: active, delta: `${Math.round((active / total) * 100)}% of total`, up: true },
-                { label: "Admins", value: admins, delta: "Full access", up: true },
+                { label: "Admin", value: admin, delta: "Full access", up: true },
                 { label: "Pending", value: pending, delta: "Awaiting setup", up: false },
               ].map((s) => (
                 <div key={s.label} className="stat-card">
@@ -944,9 +978,14 @@ export default function AdminPanel() {
                 {STATUSES.map((s) => <option key={s}>{s}</option>)}
               </select>
 
-              <button className="btn-add" onClick={() => setModal({ type: "add" })}>
-                + Add User
-              </button>
+              <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto' }}>
+                <button className="btn-add" style={{ margin: 0 }} onClick={() => setModal({ type: "add", role: "Student" })}>
+                  + Add Student
+                </button>
+                <button className="btn-add" style={{ margin: 0 }} onClick={() => setModal({ type: "add", role: "Faculty" })}>
+                  + Add Faculty
+                </button>
+              </div>
             </div>
 
             {/* Table */}
@@ -1022,17 +1061,26 @@ export default function AdminPanel() {
               </div>
             </div>
           </div>
+        </>
+      ) : (
+            <div className="page-body">
+              <div className="empty-state">
+                <div className="empty-icon">🚧</div>
+                <div className="empty-text">{activeTab} section is under construction.</div>
+              </div>
+            </div>
+          )}
         </main>
       </div>
 
       {/* Modals */}
-      {modal?.type === "add" && (
-        <UserModal mode="add" user={null} onClose={() => setModal(null)} onSave={handleAdd} />
+      {activeTab === "Users" && modal?.type === "add" && (
+        <UserModal mode="add" user={null} targetRole={modal.role} onClose={() => setModal(null)} onSave={handleAdd} />
       )}
-      {modal?.type === "edit" && (
+      {activeTab === "Users" && modal?.type === "edit" && (
         <UserModal mode="edit" user={modal.user} onClose={() => setModal(null)} onSave={handleEdit} />
       )}
-      {modal?.type === "delete" && (
+      {activeTab === "Users" && modal?.type === "delete" && (
         <DeleteModal user={modal.user} onClose={() => setModal(null)} onConfirm={handleDelete} />
       )}
 
