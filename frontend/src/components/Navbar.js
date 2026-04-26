@@ -48,7 +48,7 @@ const Navbar = () => {
               </Link>
             </li>
             <li className="nav-item">
-              <Link className={`nav-link d-flex align-items-center gap-1 ${isActive('/dashboard/course')}`} to="/dashboard/course">
+              <Link className={`nav-link d-flex align-items-center gap-1 ${isActive('/enrollment')}`} to="/enrollment">
                 <BookOpen size={18} /> Courses
               </Link>
             </li>
