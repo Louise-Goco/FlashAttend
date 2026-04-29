@@ -1,7 +1,7 @@
 // frontend/src/components/Navbar.js
 import React from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { LogOut, BookOpen, Home, User } from 'lucide-react';
+import { LogOut, BookOpen, Home, User, QrCode, ClipboardList } from 'lucide-react';
 import { auth } from '../firebase/auth';
 import { signOut } from 'firebase/auth';
 
@@ -48,7 +48,7 @@ const Navbar = () => {
               </Link>
             </li>
             <li className="nav-item">
-              <Link className={`nav-link d-flex align-items-center gap-1 ${isActive('/dashboard/course')}`} to="/dashboard/course">
+              <Link className={`nav-link d-flex align-items-center gap-1 ${isActive('/enrollment')}`} to="/enrollment">
                 <BookOpen size={18} /> Courses
               </Link>
             </li>
@@ -57,6 +57,17 @@ const Navbar = () => {
                 <User size={18} /> Profile
               </Link>
             </li>
+            <li className="nav-item">
+              <Link className={`nav-link d-flex align-items-center gap-1 ${isActive('/checkin')}`} to="/checkin">
+                <QrCode size={18} /> Check-In
+              </Link>
+            </li>
+            <li className="nav-item">
+              <Link className={`nav-link d-flex align-items-center gap-1 ${isActive('/attendance')}`} to="/attendance">
+                <ClipboardList size={18} /> Attendance
+              </Link>
+            </li>
+
           </ul>
           
         <div className="d-flex">
