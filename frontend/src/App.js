@@ -9,16 +9,16 @@ import Dashboard from "./pages/Dashboard";
 import AttendanceManagement from "./pages/AttendanceManagement";
 import ClassEnrollment from "./pages/ClassEnrollment";
 import StudentCheckIn from "./pages/StudentCheckIn";
-
+import FacultyDashboard from "./pages/FacultyDashboard";
+import StudentDashboard from "./pages/StudentDashboard";
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 
 import { useEffect } from "react";
 
 import { listenToAuthChanges } from "./firebase/auth";
 
-// Placeholder components for Home and Course till implemented
-const Home = () => <div className="p-5 text-center"><h1>Home</h1><p className="text-muted">Welcome to FlashAttend</p></div>;
-const Course = () => <div className="p-5 text-center"><h1>Courses</h1><p className="text-muted">Manage your classes here</p></div>;
+// Placeholder component for Course till implemented
+const Course = () => <div className="container py-5 text-center"><h1>Courses</h1><p className="text-muted">Manage your classes here</p></div>;
 
 function App() {
     useEffect(() => {
@@ -39,9 +39,10 @@ function App() {
           <Route path="/attendance" element={<AttendanceManagement />} />
           <Route path="/enrollment" element={<ClassEnrollment />} />
           <Route path="/checkin" element={<StudentCheckIn />} />
+          <Route path="/faculty" element={<FacultyDashboard />} />
           
           <Route path="/dashboard" element={<Dashboard />}>
-            <Route index element={<Home />} />
+            <Route index element={<StudentDashboard />} />
             <Route path="course" element={<Course />} />
             <Route path="profile" element={<Profile />} />
           </Route>

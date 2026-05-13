@@ -6,9 +6,7 @@ const Dashboard = () => {
   return (
     <>
       <Navbar />
-      <div className="container py-4">
-        <Outlet />
-      </div>
+      <Outlet />
     </>
   );
 };

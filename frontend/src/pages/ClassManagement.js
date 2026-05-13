@@ -5,6 +5,7 @@ import { getAllUsers } from "../firebase/userManagement";
 const BLANK_FORM = {
   subjectName: "",
   subjectCode: "",
+  classCode: "",
   teacherId: "",
   days: [],
   startTime: "",
@@ -42,8 +43,8 @@ const ClassModal = ({ mode, classItem, faculties, onClose, onSave }) => {
   };
 
   const handleSave = () => {
-    if (!form.subjectName?.trim() || !form.subjectCode?.trim()) {
-      alert("Subject Name and Code are required.");
+    if (!form.subjectName?.trim() || !form.subjectCode?.trim() || !form.classCode?.trim()) {
+      alert("Subject Name, Code, and Class Code are required.");
       return;
     }
     onSave(form);
@@ -67,6 +68,10 @@ const ClassModal = ({ mode, classItem, faculties, onClose, onSave }) => {
 
         <div className="form-row">
           <div className="form-group">
+            <label className="form-label">Class Code *</label>
+            <input className="form-input" value={form.classCode || ""} onChange={set("classCode")} placeholder="e.g. MATH101-SEC1" />
+          </div>
+          <div className="form-group">
             <label className="form-label">Assign Teacher</label>
             <select className="form-select" value={form.teacherId || ""} onChange={set("teacherId")}>
               <option value="">Unassigned</option>
@@ -74,10 +79,6 @@ const ClassModal = ({ mode, classItem, faculties, onClose, onSave }) => {
                 <option key={f.id} value={f.id}>{f.name}</option>
               ))}
             </select>
-          </div>
-          <div className="form-group">
-            <label className="form-label">Room</label>
-            <input className="form-input" value={form.room || ""} onChange={set("room")} placeholder="e.g. Room 301" />
           </div>
         </div>
 
@@ -107,6 +108,10 @@ const ClassModal = ({ mode, classItem, faculties, onClose, onSave }) => {
         </div>
 
         <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">Room</label>
+            <input className="form-input" value={form.room || ""} onChange={set("room")} placeholder="e.g. Room 301" />
+          </div>
           <div className="form-group">
             <label className="form-label">Status</label>
             <select className="form-select" value={form.status || "Active"} onChange={set("status")}>
@@ -301,6 +306,7 @@ export default function ClassManagement({ pushToast }) {
             <thead>
               <tr>
                 <th>Subject</th>
+                <th>Class Code</th>
                 <th>Teacher</th>
                 <th>Schedule</th>
                 <th>Room</th>
@@ -311,7 +317,7 @@ export default function ClassManagement({ pushToast }) {
             <tbody>
               {visible.length === 0 ? (
                 <tr>
-                  <td colSpan={6}>
+                  <td colSpan={7}>
                     <div className="empty-state">
                       <div className="empty-icon">📚</div>
                       <div className="empty-text">No classes match your filters</div>
@@ -326,6 +332,9 @@ export default function ClassManagement({ pushToast }) {
                         <div className="user-name">{c.subjectCode}</div>
                         <div className="user-email">{c.subjectName}</div>
                       </div>
+                    </td>
+                    <td>
+                      <div className="user-name" style={{ fontFamily: 'Space Mono, monospace', fontSize: '12px' }}>{c.classCode || "—"}</div>
                     </td>
                     <td>
                       <span className={c.teacherId ? "user-name" : "user-email"}>

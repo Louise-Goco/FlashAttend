@@ -2,6 +2,11 @@ import React, { useState, useEffect, useCallback } from "react";
 import { ref, get } from "firebase/database";
 import { db } from "../firebase/config";
 import { enrollStudent } from "../firebase/enrollment";
+import { findClassByCode, getAllClasses } from "../firebase/classes";
+import { getAllUsers, getUserData } from "../firebase/userManagement";
+import { auth } from "../firebase/auth";
+import { onAuthStateChanged } from "firebase/auth";
+import Navbar from "../components/Navbar";
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 const styles = `
@@ -75,9 +80,7 @@ const styles = `
   }
 
   .ce-input-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 14px;
+    display: block;
     margin-bottom: 16px;
   }
 
@@ -250,14 +253,7 @@ const styles = `
   }
 
   .ce-class-badge {
-    background: #eef2ee;
-    color: #4a7050;
-    font-size: 11px;
-    font-weight: 600;
-    padding: 4px 10px;
-    border-radius: 20px;
-    letter-spacing: 0.04em;
-    flex-shrink: 0;
+    display: none;
   }
 
   /* Empty state */
@@ -412,10 +408,17 @@ const ClassEnrollment = () => {
       const data = snapshot.val();
       const found = [];
 
+      // Fetch class info to show names
+      const allClasses = await getAllClasses();
+
       Object.entries(data).forEach(([classId, students]) => {
         if (students && students[sid]) {
+          const classInfo = allClasses[classId] || {};
           found.push({
             classId,
+            subjectName: classInfo.subjectName || `Class ${classId}`,
+            subjectCode: classInfo.subjectCode || "",
+            classCode: classInfo.classCode || "",
             enrolledAt: students[sid].enrolledAt,
             studentId: sid,
           });
@@ -432,24 +435,32 @@ const ClassEnrollment = () => {
     }
   }, []);
 
-  // Load on studentId change (debounced)
+  // Fetch student info on mount
   useEffect(() => {
-    if (!studentId.trim()) { setEnrolled([]); setLoadingList(false); return; }
-    const t = setTimeout(() => fetchEnrolled(studentId.trim()), 600);
-    return () => clearTimeout(t);
-  }, [studentId, fetchEnrolled]);
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        try {
+          const data = await getUserData(user.uid);
+          const sid = data.studentId || data.identifier || "";
+          setStudentId(sid);
+          if (sid) fetchEnrolled(sid);
+        } catch (err) {
+          console.error("Error loading user data:", err);
+          setLoadingList(false);
+        }
+      } else {
+        setLoadingList(false);
+      }
+    });
+    return () => unsubscribe();
+  }, [fetchEnrolled]);
 
   // Validate
   const validate = () => {
     const e = {};
     if (!classCode.trim()) e.classCode = "Class code is required";
-    if (!studentId.trim()) e.studentId = "Student ID is required";
+    if (!studentId) e.studentId = "User information not loaded. Please refresh.";
 
-    // Duplicate check
-    if (classCode.trim() && studentId.trim()) {
-      const isDupe = enrolled.some((x) => x.classId === classCode.trim());
-      if (isDupe) e.classCode = "You are already enrolled in this class";
-    }
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -458,12 +469,30 @@ const ClassEnrollment = () => {
     if (!validate()) return;
     setEnrolling(true);
     try {
-      await enrollStudent(classCode.trim(), studentId.trim());
-      pushToast("Successfully enrolled in class!", "#6b8f71");
+      // 1. Verify Class Code
+      const targetClass = await findClassByCode(classCode.trim());
+      if (!targetClass) {
+        pushToast("Invalid class code. Please check with your teacher.", "#c0533a");
+        setEnrolling(false);
+        return;
+      }
+
+      // 1.5. Duplicate check (Now that we have the target class ID)
+      const isAlreadyEnrolled = enrolled.some(x => x.classId === targetClass.id);
+      if (isAlreadyEnrolled) {
+        pushToast("You are already enrolled in this class.", "#ecc94b");
+        setEnrolling(false);
+        return;
+      }
+
+      // 3. Perform Enrollment
+      await enrollStudent(targetClass.id, studentId.trim());
+      pushToast(`Successfully enrolled in ${targetClass.subjectName}!`, "#6b8f71");
       setClassCode("");
       await fetchEnrolled(studentId.trim());
     } catch (err) {
-      pushToast("Enrollment failed. Check the class code.", "#c0533a");
+      console.error("Enrollment error:", err);
+      pushToast("Enrollment failed. Please try again.", "#c0533a");
     } finally {
       setEnrolling(false);
     }
@@ -475,6 +504,7 @@ const ClassEnrollment = () => {
 
   return (
     <>
+      <Navbar />
       <style>{styles}</style>
 
       <div className="ce-root">
@@ -482,35 +512,24 @@ const ClassEnrollment = () => {
         <div className="ce-header">
           <div className="ce-eyebrow">FlashAttend · Student Portal</div>
           <h1 className="ce-title">Class Enrollment</h1>
-          <p className="ce-subtitle">Enter a class code provided by your teacher to join a subject.</p>
+          <p className="ce-subtitle">Enter the class code provided by your teacher to join a subject.</p>
         </div>
 
         {/* Enroll Card */}
-        <div className="ce-card">
-          <div className="ce-card-label">Join a Class</div>
-
-          <div className="ce-input-row">
-            <div className="ce-field">
-              <label>Class Code</label>
-              <input
-                className={`ce-input ${errors.classCode ? "error" : ""}`}
-                placeholder="e.g. 1777203708500"
-                value={classCode}
+          <div className="ce-card">
+            <div className="ce-card-label">Use a Class Code</div>
+  
+            <div className="ce-input-row">
+              <div className="ce-field">
+                <label>Class Code</label>
+                <input
+                  className={`ce-input ${errors.classCode ? "error" : ""}`}
+                  placeholder="e.g. MATH101-SEC1"
+                  value={classCode}
                 onChange={(e) => { setClassCode(e.target.value); setErrors((x) => ({ ...x, classCode: "" })); }}
                 onKeyDown={handleKeyDown}
               />
               {errors.classCode && <div className="ce-error-msg">{errors.classCode}</div>}
-            </div>
-
-            <div className="ce-field">
-              <label>Student ID</label>
-              <input
-                className={`ce-input ${errors.studentId ? "error" : ""}`}
-                placeholder="e.g. 123"
-                value={studentId}
-                onChange={(e) => { setStudentId(e.target.value); setErrors((x) => ({ ...x, studentId: "" })); }}
-                onKeyDown={handleKeyDown}
-              />
               {errors.studentId && <div className="ce-error-msg">{errors.studentId}</div>}
             </div>
           </div>
@@ -540,9 +559,7 @@ const ClassEnrollment = () => {
           <div className="ce-empty">
             <div className="ce-empty-icon">◎</div>
             <div className="ce-empty-text">
-              {studentId.trim()
-                ? "No enrolled classes found for this Student ID."
-                : "Enter your Student ID above to see your enrolled classes."}
+              You haven't enrolled in any subjects yet.
             </div>
           </div>
         ) : (
@@ -555,12 +572,11 @@ const ClassEnrollment = () => {
               >
                 <div className="ce-class-icon">{getIcon(item.classId)}</div>
                 <div className="ce-class-info">
-                  <div className="ce-class-id">Class {item.classId}</div>
+                  <div className="ce-class-id">{item.subjectName}</div>
                   <div className="ce-class-meta">
-                    Enrolled {formatDate(item.enrolledAt)} · ID {item.studentId}
+                    {item.subjectCode} · {item.classCode} · Enrolled {formatDate(item.enrolledAt)}
                   </div>
                 </div>
-                <div className="ce-class-badge">Active</div>
               </div>
             ))}
           </div>

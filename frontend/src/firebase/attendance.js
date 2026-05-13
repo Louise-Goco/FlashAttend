@@ -37,7 +37,7 @@ export const deleteSession = async (sessionId) => {
 export const markAttendance = (attendanceId, attendanceData) => {
   return set(ref(db, "attendance/" + attendanceId), {
     ...attendanceData,
-    status: "approved",
+    status: attendanceData.status || "pending",
     timestamp: Date.now()
   });
 };

@@ -28,3 +28,12 @@ export const deleteClassData = async (classId) => {
   const classRef = ref(db, `classes/${classId}`);
   return remove(classRef);
 };
+
+export const findClassByCode = async (code) => {
+  const allClasses = await getAllClasses();
+  const searchCode = code.trim().toUpperCase();
+  const found = Object.entries(allClasses).find(([id, data]) => {
+    return (data.classCode || "").toUpperCase() === searchCode;
+  });
+  return found ? { id: found[0], ...found[1] } : null;
+};

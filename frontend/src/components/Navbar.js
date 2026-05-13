@@ -1,97 +1,49 @@
 // frontend/src/components/Navbar.js
-import React from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { LogOut, BookOpen, Home, User, QrCode, ClipboardList } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import StudentNavbar from './StudentNavbar';
+import FacultyNavbar from './FacultyNavbar';
 import { auth } from '../firebase/auth';
-import { signOut } from 'firebase/auth';
+import { getUserData } from '../firebase/userManagement';
 
 const Navbar = () => {
-  const navigate = useNavigate();
-  const location = useLocation();
+  const [userData, setUserData] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      // Optional: Navigate to a login page later, for now just to home
-      navigate('/');
-    } catch (error) {
-      console.error('Logout error:', error);
-    }
-  };
+  useEffect(() => {
+    const fetchUserRole = async (user) => {
+      if (user) {
+        try {
+          const data = await getUserData(user.uid);
+          setUserData(data);
+        } catch (error) {
+          console.error('Error fetching user data in Navbar switcher:', error);
+          setUserData(null);
+        }
+      } else {
+        setUserData(null);
+      }
+      setLoading(false);
+    };
 
-  const isActive = (path) => {
-    return location.pathname === path ? 'active fw-bold' : '';
-  };
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      fetchUserRole(user);
+    });
 
-  return (
-    <nav className="navbar navbar-expand-lg navbar-dark shadow-sm" style={{ backgroundColor: '#0d6efd' }}>
-      <div className="container">
-        <Link className="navbar-brand fw-bold d-flex align-items-center gap-2" to="/dashboard">
-          <BookOpen size={24} />
-          <span>FlashAttend</span>
-        </Link>
-        
-        <button 
-          className="navbar-toggler border-0" 
-          type="button" 
-          data-bs-toggle="collapse" 
-          data-bs-target="#navbarContent"
-        >
-          <span className="navbar-toggler-icon"></span>
-        </button>
+    return () => unsubscribe();
+  }, []);
 
-        <div className="collapse navbar-collapse" id="navbarContent">
-          <ul className="navbar-nav me-auto mb-2 mb-lg-0 ms-4">
-            <li className="nav-item">
-              <Link className={`nav-link d-flex align-items-center gap-1 ${isActive('/dashboard')}`} to="/dashboard">
-                <Home size={18} /> Home
-              </Link>
-            </li>
-            <li className="nav-item">
-              <Link className={`nav-link d-flex align-items-center gap-1 ${isActive('/enrollment')}`} to="/enrollment">
-                <BookOpen size={18} /> Courses
-              </Link>
-            </li>
-            <li className="nav-item">
-              <Link className={`nav-link d-flex align-items-center gap-1 ${isActive('/dashboard/profile')}`} to="/dashboard/profile">
-                <User size={18} /> Profile
-              </Link>
-            </li>
-            <li className="nav-item">
-              <Link className={`nav-link d-flex align-items-center gap-1 ${isActive('/checkin')}`} to="/checkin">
-                <QrCode size={18} /> Check-In
-              </Link>
-            </li>
-            <li className="nav-item">
-              <Link className={`nav-link d-flex align-items-center gap-1 ${isActive('/attendance')}`} to="/attendance">
-                <ClipboardList size={18} /> Attendance
-              </Link>
-            </li>
+  if (loading) {
+    // Return a simple placeholder or nothing while loading
+    return <div style={{ height: '56px', backgroundColor: '#0d6efd' }}></div>;
+  }
 
-          </ul>
-          
-        <div className="d-flex">
-          {!auth.currentUser ? (
-            <button 
-              onClick={() => navigate('/login')} 
-              className="btn btn-outline-light rounded-pill px-4"
-            >
-              Login
-            </button>
-          ) : (
-            <button 
-              onClick={handleLogout} 
-              className="btn btn-outline-light rounded-pill px-4 d-flex align-items-center gap-2"
-            >
-              <LogOut size={18} /> Logout
-            </button>
-          )}
-        </div>
+  const role = userData?.role || 'Student';
 
-        </div>
-      </div>
-    </nav>
-  );
+  if (role === 'Faculty' || role === 'Admin') {
+    return <FacultyNavbar />;
+  }
+
+  return <StudentNavbar />;
 };
 
 export default Navbar;
