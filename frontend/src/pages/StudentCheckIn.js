@@ -1,5 +1,12 @@
 import React, { useState, useEffect, useRef } from "react";
-import { markAttendance } from "../firebase/attendance";
+import { markAttendance, getSession } from "../firebase/attendance";
+import { ref, get } from "firebase/database";
+import { db } from "../firebase/config";
+import { auth } from "../firebase/auth";
+import { getUserData } from "../firebase/userManagement";
+import { onAuthStateChanged } from "firebase/auth";
+import Navbar from "../components/Navbar";
+import { Html5Qrcode } from "html5-qrcode";
 
 // ─── Install: npm install html5-qrcode ───────────────────────────────────────
 
@@ -510,6 +517,7 @@ const StudentCheckIn = () => {
   const [mode, setMode] = useState("manual"); // "manual" | "scan"
   const [sessionId, setSessionId] = useState("");
   const [studentId, setStudentId] = useState("");
+  const [studentName, setStudentName] = useState("");
   const [errors, setErrors] = useState({});
   const [location, setLocation] = useState(null);
   const [locStatus, setLocStatus] = useState("idle"); // idle | acquiring | acquired | error
@@ -525,6 +533,24 @@ const StudentCheckIn = () => {
     setToasts((t) => [...t, { id, msg, color }]);
     setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 3500);
   };
+
+  // ── Auto-load Student ID ───────────────────────────────────────────────────
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        try {
+          const data = await getUserData(user.uid);
+          const sid = data.studentId || data.identifier || "";
+          const name = data.firstName && data.lastName ? `${data.firstName} ${data.lastName}` : (data.name || "");
+          setStudentId(sid);
+          setStudentName(name);
+        } catch (err) {
+          console.error("Error loading user data:", err);
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   // ── Geolocation ────────────────────────────────────────────────────────────
   const requestLocation = () => {
@@ -547,30 +573,33 @@ const StudentCheckIn = () => {
     );
   };
 
-  // ── QR Scanner ─────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (mode !== "scan") {
-      if (scannerInstanceRef.current) {
-        scannerInstanceRef.current.stop().catch(() => {});
-        scannerInstanceRef.current = null;
-        setScannerReady(false);
-      }
-      return;
-    }
-
+    let scanner = null;
     let cancelled = false;
 
     const startScanner = async () => {
-      try {
-        const { Html5Qrcode } = await import("html5-qrcode");
-        if (cancelled || !scannerRef.current) return;
+      if (mode !== "scan" || !scannerRef.current) return;
+      
+      // Small delay to ensure DOM element is ready
+      await new Promise(r => setTimeout(r, 300));
+      if (cancelled) return;
 
-        const scanner = new Html5Qrcode("sc-qr-reader");
+      try {
+        scanner = new Html5Qrcode("sc-qr-reader");
         scannerInstanceRef.current = scanner;
+
+        const config = {
+          fps: 10,
+          qrbox: (viewfinderWidth, viewfinderHeight) => {
+            const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+            const size = Math.floor(minEdge * 0.7);
+            return { width: size, height: size };
+          }
+        };
 
         await scanner.start(
           { facingMode: "environment" },
-          { fps: 10, qrbox: { width: 200, height: 200 } },
+          config,
           (decodedText) => {
             setSessionId(decodedText);
             setMode("manual");
@@ -578,18 +607,27 @@ const StudentCheckIn = () => {
           },
           () => {}
         );
-
         if (!cancelled) setScannerReady(true);
       } catch (err) {
+        console.error("Scanner error:", err);
         if (!cancelled) {
-          pushToast("Camera access denied or unavailable", "#ef4444");
+          pushToast("Camera failed. Please enter ID manually.", "#ef4444");
           setMode("manual");
         }
       }
     };
 
-    startScanner();
-    return () => { cancelled = true; };
+    if (mode === "scan") {
+      startScanner();
+    }
+
+    return () => {
+      cancelled = true;
+      if (scanner) {
+        scanner.stop().catch(() => {});
+      }
+      setScannerReady(false);
+    };
   }, [mode]);
 
   // ── Validation ─────────────────────────────────────────────────────────────
@@ -608,7 +646,38 @@ const StudentCheckIn = () => {
     setSubmitting(true);
 
     try {
-      // Distance validation scaffold
+      // 1. Fetch Session to get classId
+      const sessionData = await getSession(sessionId.trim());
+      if (!sessionData) throw new Error("Session no longer active or invalid.");
+      if (!sessionData.isActive) throw new Error("This attendance session has already ended.");
+
+      const classId = sessionData.classId;
+
+      // 1.5 Fetch Class Details for Subject Name
+      const classSnap = await get(ref(db, `classes/${classId}`));
+      const classData = classSnap.exists() ? classSnap.val() : {};
+      const subjectName = classData.subjectName || "Unknown Subject";
+
+      // 2. Verify Enrollment
+      const enrollRef = ref(db, `enrollments/${classId}/${studentId.trim()}`);
+      const enrollSnap = await get(enrollRef);
+      if (!enrollSnap.exists()) {
+        throw new Error("You are not enrolled in this subject. Please enroll first.");
+      }
+
+      // 2.5 Check if already checked in
+      const allAttendanceSnap = await get(ref(db, "attendance"));
+      if (allAttendanceSnap.exists()) {
+        const attendanceData = allAttendanceSnap.val();
+        const alreadyCheckedIn = Object.values(attendanceData).some(
+          (a) => a.sessionId === sessionId.trim() && a.studentId === studentId.trim()
+        );
+        if (alreadyCheckedIn) {
+          throw new Error("You have already checked in for this session.");
+        }
+      }
+
+      // 3. Distance validation scaffold
       validateDistance(/* location.lat, location.lng, sessionLat, sessionLng */);
 
       const attendanceId = Date.now().toString();
@@ -617,7 +686,8 @@ const StudentCheckIn = () => {
       await markAttendance(attendanceId, {
         sessionId: sessionId.trim(),
         studentId: studentId.trim(),
-        status: "present",
+        studentName: studentName, // Store name directly
+        status: "pending",
         timestamp,
         // Geolocation saved to record (4.3)
         location: {
@@ -629,6 +699,7 @@ const StudentCheckIn = () => {
 
       setResult({
         success: true,
+        subjectName,
         sessionId: sessionId.trim(),
         studentId: studentId.trim(),
         timestamp,
@@ -679,6 +750,10 @@ const StudentCheckIn = () => {
             {result.success && (
               <div className="sc-result-meta">
                 <div className="sc-meta-row">
+                  <span className="sc-meta-label">Subject</span>
+                  <span>{result.subjectName}</span>
+                </div>
+                <div className="sc-meta-row">
                   <span className="sc-meta-label">Session ID</span>
                   <span>{result.sessionId}</span>
                 </div>
@@ -718,6 +793,7 @@ const StudentCheckIn = () => {
 
   return (
     <>
+      <Navbar />
       <style>{styles}</style>
       <div className="sc-root">
 
@@ -785,12 +861,14 @@ const StudentCheckIn = () => {
             <div className="sc-field">
               <label>Student ID</label>
               <input
-                className={`sc-input ${errors.studentId ? "error" : ""}`}
-                placeholder="Enter your student ID"
+                className={`sc-input ${studentId ? "filled" : ""} ${errors.studentId ? "error" : ""}`}
+                placeholder="Student ID auto-loaded"
                 value={studentId}
-                onChange={(e) => { setStudentId(e.target.value); setErrors((x) => ({ ...x, studentId: "" })); }}
+                readOnly
+                disabled
               />
               {errors.studentId && <div className="sc-error-msg">{errors.studentId}</div>}
+              <small className="text-muted mt-1 d-block">ID is linked to your account</small>
             </div>
 
             {/* Location (4.2 + 4.3) */}

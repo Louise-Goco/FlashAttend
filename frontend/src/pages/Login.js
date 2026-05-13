@@ -36,6 +36,8 @@ const Login = () => {
         const userData = await getUserData(uid);
         if (userData.role === 'Admin' || formData.email === 'admin@gmail.com') {
           navigate('/admin');
+        } else if (userData.role === 'Faculty') {
+          navigate('/faculty');
         } else {
           navigate('/dashboard');
         }
