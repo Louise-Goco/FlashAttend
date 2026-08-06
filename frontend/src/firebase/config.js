@@ -1,6 +1,6 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
+import { getDatabase } from "firebase/database";
 // TODO: Add SDKs for Firebase products that you want to use
 // https://firebase.google.com/docs/web/setup#available-libraries
 
@@ -13,9 +13,10 @@ const firebaseConfig = {
   storageBucket: "flashattend-49e70.firebasestorage.app",
   messagingSenderId: "610844240439",
   appId: "1:610844240439:web:186bbd248ebf16b6d96db2",
-  measurementId: "G-C5ZTP0BTVS"
 };
 
 // Initialize Firebase
+
 const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
+export const db = getDatabase(app);
+export { app };
